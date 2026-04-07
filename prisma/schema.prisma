@@ -1,0 +1,495 @@
+// prisma/schema.prisma
+// OzBiz Directory v4 — Complete Schema with Consumer/Vendor Distinction
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────
+
+enum Role {
+  user
+  admin
+  superadmin
+}
+
+enum UserType {
+  consumer      // Regular customer - browses, reviews, saves favorites
+  vendor        // Business owner - can list businesses, manage leads
+  both          // Can do both (for advanced users)
+}
+
+enum AuthProvider {
+  local
+  google
+}
+
+enum ListingStatus {
+  pending
+  active
+  inactive
+  rejected
+  featured
+}
+
+enum ListingPlan {
+  free
+  basic
+  premium
+  featured
+  elite
+}
+
+enum ImageType {
+  banner
+  logo
+  cover
+  product
+  office
+  gallery
+  sidebar
+}
+
+enum ReviewStatus {
+  pending
+  approved
+  rejected
+  flagged
+}
+
+enum EnquiryStatus {
+  new
+  read
+  replied
+  archived
+  spam
+}
+
+enum AdPlacement {
+  hero_top
+  hero_bottom
+  sidebar_left
+  sidebar_right
+  banner_mid
+  footer
+  category
+}
+
+enum BlogStatus {
+  draft
+  published
+}
+
+enum LeadStatus {
+  new
+  contacted
+  converted
+  lost
+  follow_up
+}
+
+// ─── Models ───────────────────────────────────────────────
+
+model User {
+  id                    String       @id @default(uuid())
+  name                  String       @db.VarChar(200)
+  email                 String       @unique @db.VarChar(255)
+  passwordHash          String?      @map("password_hash") @db.VarChar(255)
+  provider              AuthProvider @default(local)
+  googleId              String?      @unique @map("google_id")
+  role                  Role         @default(user)
+  userType              UserType     @default(consumer)
+  phone                 String?      @db.VarChar(20)
+  avatarUrl             String?      @map("avatar_url") @db.VarChar(500)
+  isActive              Boolean      @default(true) @map("is_active")
+  emailVerified         Boolean      @default(false) @map("email_verified")
+  emailVerifyToken      String?      @map("email_verify_token")
+  emailVerifyExpiry     DateTime?    @map("email_verify_expiry")
+  passwordResetToken    String?      @map("password_reset_token")
+  passwordResetExpiry   DateTime?    @map("password_reset_expiry")
+  newsletterSubscribed  Boolean      @default(false) @map("newsletter_subscribed")
+  
+  // Vendor-specific fields
+  businessName          String?      @map("business_name") @db.VarChar(200)
+  businessABN           String?      @map("business_abn") @db.VarChar(30)
+  businessPhone         String?      @map("business_phone") @db.VarChar(30)
+  businessAddress       String?      @map("business_address") @db.Text
+  businessLogo          String?      @map("business_logo") @db.VarChar(500)
+  subscriptionPlan      ListingPlan  @default(free) @map("subscription_plan")
+  subscriptionExpiresAt DateTime?    @map("subscription_expires_at")
+  stripeCustomerId      String?      @map("stripe_customer_id") @db.VarChar(100)
+  
+  createdAt             DateTime     @default(now()) @map("created_at")
+  updatedAt             DateTime     @updatedAt @map("updated_at")
+
+  listings               Listing[]
+  reviews                Review[]
+  blogs                  Blog[]
+  favorites              Favorite[]
+  searchHistory          SearchHistory[]
+  notificationSettings   NotificationSettings?
+  vendorAnalytics        VendorAnalytics?
+  subscriptionHistory    SubscriptionHistory[]
+  leadNotes              LeadNote[]  // ADD THIS LINE
+
+  @@map("users")
+}
+
+model Category {
+  id           Int        @id @default(autoincrement())
+  name         String     @db.VarChar(200)
+  slug         String     @unique @db.VarChar(200)
+  description  String?    @db.Text
+  icon         String?    @db.VarChar(100)
+  imageUrl     String?    @map("image_url") @db.VarChar(500)
+  parentId     Int?       @map("parent_id")
+  parent       Category?  @relation("CategoryParent", fields: [parentId], references: [id])
+  children     Category[] @relation("CategoryParent")
+  sortOrder    Int        @default(0) @map("sort_order")
+  isActive     Boolean    @default(true) @map("is_active")
+  listingCount Int        @default(0) @map("listing_count")
+  createdAt    DateTime   @default(now()) @map("created_at")
+
+  listings Listing[]
+
+  @@map("categories")
+}
+
+model Listing {
+  id               String        @id @default(uuid())
+  userId           String?       @map("user_id")
+  categoryId       Int?          @map("category_id")
+  title            String        @db.VarChar(300)
+  slug             String        @unique @db.VarChar(300)
+  description      String?       @db.Text
+  shortDescription String?       @map("short_description") @db.VarChar(500)
+  status           ListingStatus @default(pending)
+  isFeatured       Boolean       @default(false) @map("is_featured")
+  isVerified       Boolean       @default(false) @map("is_verified")
+
+  // Contact
+  phone   String? @db.VarChar(30)
+  email   String? @db.VarChar(255)
+  website String? @db.VarChar(500)
+
+  // Location
+  address   String?  @db.Text
+  suburb    String?  @db.VarChar(100)
+  city      String?  @db.VarChar(100)
+  state     String?  @db.VarChar(50)
+  postcode  String?  @db.VarChar(10)
+  country   String?  @default("Australia") @db.VarChar(50)
+  latitude  Decimal? @db.Decimal(10, 8)
+  longitude Decimal? @db.Decimal(11, 8)
+
+  // Business details
+  abn          String? @db.VarChar(30)
+  businessHours Json?  @map("business_hours")
+  tags         String[] @default([])
+
+  // Social media links
+  socialFacebook  String? @map("social_facebook") @db.VarChar(300)
+  socialInstagram String? @map("social_instagram") @db.VarChar(300)
+  socialTwitter   String? @map("social_twitter") @db.VarChar(300)
+  socialLinkedin  String? @map("social_linkedin") @db.VarChar(300)
+  socialYoutube   String? @map("social_youtube") @db.VarChar(300)
+  socialWhatsapp  String? @map("social_whatsapp") @db.VarChar(50)
+
+  // Stats
+  viewCount   Int     @default(0) @map("view_count")
+  clickCount  Int     @default(0) @map("click_count")
+  leadCount   Int     @default(0) @map("lead_count")
+  ratingAvg   Decimal @default(0) @map("rating_avg") @db.Decimal(3, 2)
+  ratingCount Int     @default(0) @map("rating_count")
+
+  // Plan
+  plan          ListingPlan @default(free)
+  planExpiresAt DateTime?   @map("plan_expires_at")
+
+  // Primary images (quick access)
+  logoUrl  String? @map("logo_url") @db.VarChar(500)
+  coverUrl String? @map("cover_url") @db.VarChar(500)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user      User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  category  Category?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  images    ListingImage[]
+  products  Product[]
+  reviews   Review[]
+  enquiries Enquiry[]
+  favorites Favorite[]
+  analytics  ListingAnalytics?
+
+  @@index([status])
+  @@index([categoryId])
+  @@index([city])
+  @@index([isFeatured, status])
+  @@index([userId])
+  @@map("listings")
+}
+
+model ListingImage {
+  id        Int       @id @default(autoincrement())
+  listingId String    @map("listing_id")
+  url       String    @db.VarChar(500)
+  type      ImageType @default(gallery)
+  caption   String?   @db.VarChar(200)
+  sortOrder Int       @default(0) @map("sort_order")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@index([listingId, type])
+  @@map("listing_images")
+}
+
+model Product {
+  id          String   @id @default(uuid())
+  listingId   String   @map("listing_id")
+  name        String   @db.VarChar(300)
+  description String?  @db.Text
+  price       Decimal? @db.Decimal(10, 2)
+  priceUnit   String?  @map("price_unit") @db.VarChar(50)
+  imageUrl    String?  @map("image_url") @db.VarChar(500)
+  isAvailable Boolean  @default(true) @map("is_available")
+  isFeatured  Boolean  @default(false) @map("is_featured")
+  sortOrder   Int      @default(0) @map("sort_order")
+  category    String?  @db.VarChar(100)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@index([listingId, isFeatured])
+  @@map("products")
+}
+
+model Review {
+  id            String       @id @default(uuid())
+  listingId     String       @map("listing_id")
+  userId        String?      @map("user_id")
+  reviewerName  String?      @map("reviewer_name") @db.VarChar(200)
+  reviewerEmail String?      @map("reviewer_email") @db.VarChar(255)
+  rating        Int
+  title         String?      @db.VarChar(300)
+  body          String?      @db.Text
+  status        ReviewStatus @default(pending)
+  helpfulCount  Int          @default(0) @map("helpful_count")
+  vendorReply   String?      @map("vendor_reply") @db.Text
+  vendorReplyAt DateTime?     @map("vendor_reply_at")
+  createdAt     DateTime     @default(now()) @map("created_at")
+
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  user    User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([listingId, status])
+  @@map("reviews")
+}
+
+model Enquiry {
+  id           String        @id @default(uuid())
+  listingId    String        @map("listing_id")
+  senderName   String        @map("sender_name") @db.VarChar(200)
+  senderEmail  String        @map("sender_email") @db.VarChar(255)
+  senderPhone  String?       @map("sender_phone") @db.VarChar(30)
+  subject      String?       @db.VarChar(300)
+  message      String        @db.Text
+  status       EnquiryStatus @default(new)
+  leadStatus   LeadStatus    @default(new) @map("lead_status")
+  replyMessage String?       @map("reply_message") @db.Text
+  repliedAt    DateTime?     @map("replied_at")
+  createdAt    DateTime      @default(now()) @map("created_at")
+
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  leadNotes LeadNote[]
+
+  @@index([listingId])
+  @@index([status])
+  @@index([leadStatus])
+  @@map("enquiries")
+}
+
+model Advertisement {
+  id              Int          @id @default(autoincrement())
+  title           String       @db.VarChar(200)
+  businessName    String?      @map("business_name") @db.VarChar(200)
+  imageUrl        String       @map("image_url") @db.VarChar(500)
+  linkUrl         String?      @map("link_url") @db.VarChar(500)
+  placement       AdPlacement  @default(banner_mid)
+  startDate       DateTime?    @map("start_date") @db.Date
+  endDate         DateTime?    @map("end_date") @db.Date
+  isActive        Boolean      @default(true) @map("is_active")
+  clickCount      Int          @default(0) @map("click_count")
+  impressionCount Int          @default(0) @map("impression_count")
+  sortOrder       Int          @default(0) @map("sort_order")
+  createdAt       DateTime     @default(now()) @map("created_at")
+
+  @@index([placement, isActive])
+  @@map("advertisements")
+}
+
+model Blog {
+  id          String     @id @default(uuid())
+  authorId    String?    @map("author_id")
+  title       String     @db.VarChar(300)
+  slug        String     @unique @db.VarChar(300)
+  excerpt     String?    @db.VarChar(500)
+  content     String     @db.Text
+  coverUrl    String?    @map("cover_url") @db.VarChar(500)
+  status      BlogStatus @default(draft)
+  tags        String[]   @default([])
+  viewCount   Int        @default(0) @map("view_count")
+  publishedAt DateTime?  @map("published_at")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+
+  author User? @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([status, publishedAt])
+  @@map("blogs")
+}
+
+model NewsletterSubscriber {
+  id          Int      @id @default(autoincrement())
+  email       String   @unique @db.VarChar(255)
+  name        String?  @db.VarChar(200)
+  isActive    Boolean  @default(true) @map("is_active")
+  confirmedAt DateTime? @map("confirmed_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("newsletter_subscribers")
+}
+
+model ActivityLog {
+  id         Int      @id @default(autoincrement())
+  userId     String?  @map("user_id")
+  action     String   @db.VarChar(100)
+  entityType String?  @map("entity_type") @db.VarChar(50)
+  entityId   String?  @map("entity_id") @db.VarChar(100)
+  details    Json?
+  ipAddress  String?  @map("ip_address") @db.VarChar(45)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@map("activity_log")
+}
+
+// ============================================================
+// CONSUMER FEATURES MODELS
+// ============================================================
+
+model Favorite {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  listingId String   @map("listing_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, listingId])
+  @@map("favorites")
+}
+
+model SearchHistory {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  query      String
+  filters    Json?    @map("filters")
+  resultsCount Int    @default(0) @map("results_count")
+  searchedAt DateTime @default(now()) @map("searched_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, searchedAt])
+  @@map("search_history")
+}
+
+model NotificationSettings {
+  id               String   @id @default(uuid())
+  userId           String   @unique @map("user_id")
+  emailEnquiries   Boolean  @default(true) @map("email_enquiries")
+  emailReviews     Boolean  @default(true) @map("email_reviews")
+  emailNewsletter  Boolean  @default(false) @map("email_newsletter")
+  emailPromotions  Boolean  @default(false) @map("email_promotions")
+  emailLeadUpdates Boolean  @default(true) @map("email_lead_updates")
+  pushEnquiries    Boolean  @default(true) @map("push_enquiries")
+  pushReviews      Boolean  @default(true) @map("push_reviews")
+  pushLeadUpdates  Boolean  @default(true) @map("push_lead_updates")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notification_settings")
+}
+
+// ============================================================
+// VENDOR FEATURES MODELS
+// ============================================================
+
+model VendorAnalytics {
+  id              String   @id @default(uuid())
+  userId          String   @unique @map("user_id")
+  totalViews      Int      @default(0) @map("total_views")
+  totalLeads      Int      @default(0) @map("total_leads")
+  totalConversions Int     @default(0) @map("total_conversions")
+  averageRating   Float    @default(0) @map("average_rating")
+  monthlyData     Json?    @map("monthly_data")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("vendor_analytics")
+}
+
+model SubscriptionHistory {
+  id            String      @id @default(uuid())
+  userId        String      @map("user_id")
+  plan          ListingPlan
+  amount        Float
+  currency      String      @default("AUD")
+  status        String      @default("active") // active, cancelled, expired
+  startDate     DateTime    @default(now()) @map("start_date")
+  endDate       DateTime?   @map("end_date")
+  stripePaymentId String?    @map("stripe_payment_id")
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@map("subscription_history")
+}
+
+model ListingAnalytics {
+  id              String   @id @default(uuid())
+  listingId       String   @unique @map("listing_id")
+  viewsByDay      Json?    @map("views_by_day")
+  leadsByDay      Json?    @map("leads_by_day")
+  trafficSources  Json?    @map("traffic_sources")
+  keywordViews    Json?    @map("keyword_views")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@map("listing_analytics")
+}
+
+model LeadNote {
+  id          String   @id @default(uuid())
+  enquiryId   String   @map("enquiry_id")
+  vendorId    String   @map("vendor_id")
+  note        String   @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  enquiry Enquiry @relation(fields: [enquiryId], references: [id], onDelete: Cascade)
+  vendor  User    @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@map("lead_notes")
+}
