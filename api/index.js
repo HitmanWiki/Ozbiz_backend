@@ -1,7 +1,5 @@
-// api/index.js
-// Vercel Serverless Function entry point.
-// Vercel looks for files in /api — this re-exports our Express app.
-
+// backend/api/index.js
 const app = require('../src/server');
 
+// Export the Express app for Vercel
 module.exports = app;

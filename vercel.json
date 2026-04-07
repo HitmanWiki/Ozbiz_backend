@@ -6,14 +6,19 @@
       "src": "api/index.js",
       "use": "@vercel/node",
       "config": {
-        "includeFiles": ["prisma/**"]
+        "includeFiles": [
+          "prisma/**",
+          "src/**",
+          "node_modules/.prisma/**",
+          "node_modules/@prisma/**"
+        ]
       }
     }
   ],
   "routes": [
     {
-      "src": "/(.*)",
-      "dest": "api/index.js"
+      "src": "/api/(.*)",
+      "dest": "/api/index.js"
     }
   ],
   "env": {
