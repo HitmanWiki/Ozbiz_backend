@@ -1,14 +1,6 @@
 {
   "version": 2,
-  "name": "ozbiz-api",
   "buildCommand": "npm run vercel-build",
-  "installCommand": "npm install",
-  "functions": {
-    "api/index.js": {
-      "maxDuration": 30,
-      "memory": 1024
-    }
-  },
   "builds": [
     {
       "src": "api/index.js",
@@ -17,23 +9,15 @@
         "includeFiles": [
           "prisma/**",
           "src/**",
-          "node_modules/.prisma/**",
-          "node_modules/@prisma/**"
+          "node_modules/.prisma/**"
         ]
       }
     }
   ],
   "routes": [
     {
-      "src": "/api/(.*)",
-      "dest": "/api/index.js"
-    },
-    {
-      "src": "/health",
-      "dest": "/api/index.js"
+      "src": "/(.*)",
+      "dest": "api/index.js"
     }
-  ],
-  "env": {
-    "NODE_ENV": "production"
-  }
+  ]
 }
