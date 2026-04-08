@@ -22,6 +22,7 @@ app.use(
 // CORS — allow local dev + production frontend
 const allowedOrigins = [
   process.env.FRONTEND_URL,
+  'https://ozbiz-frontend.vercel.app',  // ADD YOUR FRONTEND URL
   'http://localhost:5173',
   'http://localhost:3000',
 ].filter(Boolean);
