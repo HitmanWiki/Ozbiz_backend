@@ -8,6 +8,7 @@ const auth = require('../controllers/authController');
 const listings = require('../controllers/listingsController');
 const admin = require('../controllers/adminController');
 const userController = require('../controllers/userController');
+const chatbot = require('../controllers/chatbotController');
 
 // ─── Auth ──────────────────────────────────────────────────────────────
 router.post('/auth/register', auth.register);
@@ -32,6 +33,10 @@ router.get('/homepage/most-visited', listings.getMostVisited);
 
 // Newsletter
 router.post('/newsletter/subscribe', admin.subscribeNewsletter);
+
+// ─── Chatbot ──────────────────────────────────────────────────────────
+router.post('/chatbot', chatbot.getChatbotResponse);
+router.get('/chatbot/suggestions', chatbot.getSuggestedQuestions);
 
 // Blog (public)
 router.get('/blogs', admin.getPublicBlogs);
