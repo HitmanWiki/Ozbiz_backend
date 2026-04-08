@@ -12,7 +12,7 @@
     "prisma:studio": "prisma studio",
     "prisma:seed": "node prisma/seed.js",
     "build": "prisma generate",
-    "vercel-build": "prisma generate"
+    "vercel-build": "prisma generate && npx prisma db push --accept-data-loss"
   },
   "dependencies": {
     "@prisma/client": "^5.14.0",
