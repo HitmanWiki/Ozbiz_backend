@@ -19,7 +19,6 @@ app.use(
   })
 );
 
-// CORS — allow local dev + production frontend
 const allowedOrigins = [
   process.env.FRONTEND_URL,
   'https://ozbiz-frontend.vercel.app',  // ADD YOUR FRONTEND URL
@@ -31,7 +30,9 @@ app.use(
   cors({
     origin: (origin, cb) => {
       // Allow requests with no origin (mobile apps, curl, Postman)
-      if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+      if (!origin) return cb(null, true);
+      if (allowedOrigins.includes(origin)) return cb(null, true);
+      console.log(`CORS blocked: ${origin}`);
       cb(new Error(`CORS blocked: ${origin}`));
     },
     credentials: true,
