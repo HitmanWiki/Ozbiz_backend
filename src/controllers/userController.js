@@ -117,7 +117,6 @@ const saveSearchHistory = async (req, res) => {
     const { query, filters, resultsCount } = req.body;
     if (!query) return res.status(400).json({ error: 'Search query required' });
 
-    // Delete oldest if more than 50
     const count = await prisma.searchHistory.count({ where: { userId: req.user.id } });
     if (count >= 50) {
       const oldest = await prisma.searchHistory.findFirst({
@@ -199,16 +198,57 @@ const updateNotificationSettings = async (req, res) => {
   }
 };
 
+// ─── Notifications ──────────────────────────────────────────────
+const getNotifications = async (req, res) => {
+  try {
+    const notifications = await prisma.notification.findMany({
+      where: { userId: req.user.id },
+      orderBy: { createdAt: 'desc' },
+      take: 50
+    });
+    res.json(notifications);
+  } catch (err) {
+    console.error('Get notifications error:', err);
+    res.json([]);
+  }
+};
+
+const markNotificationRead = async (req, res) => {
+  try {
+    const { id } = req.params;
+    await prisma.notification.update({
+      where: { id, userId: req.user.id },
+      data: { isRead: true }
+    });
+    res.json({ message: 'Notification marked as read' });
+  } catch (err) {
+    console.error('Mark notification read error:', err);
+    res.status(500).json({ error: 'Failed to mark as read' });
+  }
+};
+
+const markAllNotificationsRead = async (req, res) => {
+  try {
+    await prisma.notification.updateMany({
+      where: { userId: req.user.id, isRead: false },
+      data: { isRead: true }
+    });
+    res.json({ message: 'All notifications marked as read' });
+  } catch (err) {
+    console.error('Mark all notifications read error:', err);
+    res.status(500).json({ error: 'Failed to mark all as read' });
+  }
+};
+
 // ─── Vendor Dashboard Stats ─────────────────────────────────────
 const getVendorDashboardStats = async (req, res) => {
   try {
-    // Get user's subscription info
     const user = await prisma.user.findUnique({
       where: { id: req.user.id },
       select: { subscriptionPlan: true, subscriptionExpiresAt: true }
     });
 
-    const [listings, totalViews, totalLeads, recentLeads, reviews, monthlyViews] = await Promise.all([
+    const [listings, totalViews, totalLeads, recentLeads, reviews] = await Promise.all([
       prisma.listing.findMany({
         where: { userId: req.user.id },
         select: { 
@@ -235,32 +275,63 @@ const getVendorDashboardStats = async (req, res) => {
         include: { listing: { select: { title: true, slug: true } } },
         orderBy: { createdAt: 'desc' },
         take: 10
-      }),
-      // Monthly view trend (last 6 months)
-      prisma.$queryRaw`
-        SELECT TO_CHAR(DATE_TRUNC('month', created_at), 'Mon YYYY') as month,
-               COUNT(*)::int as views
+      })
+    ]);
+
+    // Calculate average rating
+    const avgRating = listings.reduce((sum, l) => sum + Number(l.ratingAvg), 0) / (listings.length || 1);
+    
+    // Calculate conversion rate
+    const totalViewCount = totalViews._sum.viewCount || 0;
+    const conversionRate = totalLeads > 0 && totalViewCount > 0 
+      ? Math.round((totalLeads / totalViewCount) * 100) 
+      : 0;
+
+    // Get monthly view trend (last 6 months)
+    let monthlyViews = [];
+    try {
+      monthlyViews = await prisma.$queryRaw`
+        SELECT 
+          TO_CHAR(DATE_TRUNC('month', created_at), 'Mon YYYY') as month,
+          DATE_TRUNC('month', created_at) as month_date,
+          COUNT(*)::int as views
         FROM listings
         WHERE user_id = ${req.user.id}
           AND created_at >= NOW() - INTERVAL '6 months'
         GROUP BY DATE_TRUNC('month', created_at)
         ORDER BY DATE_TRUNC('month', created_at)
-      `
-    ]);
+      `;
+    } catch (err) {
+      console.error('Error fetching monthly views:', err);
+      monthlyViews = [];
+    }
 
-    // Calculate conversion rate
-    const conversionRate = totalLeads > 0 
-      ? Math.round((totalLeads / (totalViews._sum.viewCount || 1)) * 100)
-      : 0;
+    // Get leads trend (last 6 months)
+    let leadsTrend = [];
+    try {
+      leadsTrend = await prisma.$queryRaw`
+        SELECT 
+          TO_CHAR(DATE_TRUNC('month', created_at), 'Mon YYYY') as month,
+          COUNT(*)::int as leads
+        FROM enquiries
+        WHERE listing_id IN (SELECT id FROM listings WHERE user_id = ${req.user.id})
+          AND created_at >= NOW() - INTERVAL '6 months'
+        GROUP BY DATE_TRUNC('month', created_at)
+        ORDER BY DATE_TRUNC('month', created_at)
+      `;
+    } catch (err) {
+      console.error('Error fetching leads trend:', err);
+      leadsTrend = [];
+    }
 
     res.json({
       stats: {
         totalListings: listings.length,
-        totalViews: totalViews._sum.viewCount || 0,
+        totalViews: totalViewCount,
         totalLeads: totalLeads,
         activeListings: listings.filter(l => l.status === 'active').length,
         pendingListings: listings.filter(l => l.status === 'pending').length,
-        averageRating: listings.reduce((sum, l) => sum + Number(l.ratingAvg), 0) / (listings.length || 1),
+        averageRating: parseFloat(avgRating.toFixed(1)),
         conversionRate: conversionRate,
         subscriptionPlan: user?.subscriptionPlan || 'free',
         subscriptionActive: user?.subscriptionExpiresAt 
@@ -270,7 +341,8 @@ const getVendorDashboardStats = async (req, res) => {
       listings,
       recentLeads,
       recentReviews: reviews,
-      monthlyViews: monthlyViews || []
+      monthlyViews: monthlyViews || [],
+      leadsTrend: leadsTrend || []
     });
   } catch (err) {
     console.error('Vendor dashboard error:', err);
@@ -493,14 +565,13 @@ const getSubscriptionPlans = async (req, res) => {
           'Dedicated Account Manager'
         ],
         limits: {
-          listings: -1, // unlimited
+          listings: -1,
           views: -1,
           leads: -1
         }
       }
     ];
     
-    // Get user's current subscription
     const user = await prisma.user.findUnique({
       where: { id: req.user.id },
       select: { subscriptionPlan: true, subscriptionExpiresAt: true }
@@ -525,28 +596,14 @@ const upgradeSubscription = async (req, res) => {
       return res.status(400).json({ error: 'Invalid plan' });
     }
     
-    // Calculate expiry date (30 days from now)
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 30);
     
-    // Update user's subscription
     const user = await prisma.user.update({
       where: { id: req.user.id },
       data: {
         subscriptionPlan: planId,
         subscriptionExpiresAt: expiresAt
-      }
-    });
-    
-    // Record in subscription history
-    await prisma.subscriptionHistory.create({
-      data: {
-        userId: req.user.id,
-        plan: planId,
-        amount: planId === 'premium' ? 29 : (planId === 'elite' ? 79 : 0),
-        status: 'active',
-        startDate: new Date(),
-        endDate: expiresAt
       }
     });
     
@@ -592,23 +649,11 @@ const getListingAnalytics = async (req, res) => {
         userId: req.user.id
       },
       include: {
-        analytics: true,
         products: { where: { isFeatured: true } }
       }
     });
     
     if (!listing) return res.status(404).json({ error: 'Listing not found' });
-    
-    // Get daily views for last 30 days
-    const dailyViews = await prisma.$queryRaw`
-      SELECT DATE(created_at) as date, COUNT(*)::int as views
-      FROM activity_log
-      WHERE entity_id = ${listingId}
-        AND action = 'view'
-        AND created_at >= NOW() - INTERVAL '30 days'
-      GROUP BY DATE(created_at)
-      ORDER BY date
-    `;
     
     res.json({
       listing: {
@@ -618,7 +663,6 @@ const getListingAnalytics = async (req, res) => {
         leadCount: listing.leadCount,
         ratingAvg: listing.ratingAvg
       },
-      dailyViews,
       products: listing.products
     });
   } catch (err) {
@@ -627,6 +671,7 @@ const getListingAnalytics = async (req, res) => {
   }
 };
 
+// Module exports
 module.exports = {
   // Consumer features
   getFavorites,
@@ -638,6 +683,11 @@ module.exports = {
   clearSearchHistory,
   getNotificationSettings,
   updateNotificationSettings,
+  
+  // Notifications
+  getNotifications,
+  markNotificationRead,
+  markAllNotificationsRead,
   
   // Vendor features
   getVendorDashboardStats,
@@ -653,5 +703,5 @@ module.exports = {
   cancelSubscription,
   
   // Analytics
-  getListingAnalytics
+  getListingAnalytics,
 };

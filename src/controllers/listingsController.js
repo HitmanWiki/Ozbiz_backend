@@ -1,19 +1,24 @@
-// src/controllers/listingsController.js
+// backend/src/controllers/listingsController.js
 const prisma = require('../lib/prisma');
 const slugify = require('slugify');
 const { uploadToCloud } = require('../middleware/upload');
 const emailSvc = require('../lib/email');
 
-// Update the getListings function in backend/src/controllers/listingsController.js
-
 const getListings = async (req, res) => {
   try {
-    const { search, category, city, state, featured, page = 1, limit = 12, sort = 'createdAt' } = req.query;
+    const { 
+      search, category, city, state, featured, 
+      page = 1, limit = 12, sort = 'createdAt',
+      priceRange, verifiedOnly, openNow, minRating 
+    } = req.query;
+    
     const take = Math.min(parseInt(limit), 50);
     const skip = (parseInt(page) - 1) * take;
 
     const where = { status: 'active' };
-    if (search) {
+    
+    // Search filter
+    if (search && search.trim()) {
       where.OR = [
         { title: { contains: search, mode: 'insensitive' } },
         { description: { contains: search, mode: 'insensitive' } },
@@ -22,48 +27,127 @@ const getListings = async (req, res) => {
         { tags: { has: search.toLowerCase() } },
       ];
     }
-    if (category) where.category = { slug: category };
-    if (city) where.city = { equals: city, mode: 'insensitive' };
-    if (state) where.state = { equals: state, mode: 'insensitive' };
-    if (featured === 'true') where.isFeatured = true;
+    
+    // Category filter
+    if (category) {
+      where.category = { slug: category };
+    }
+    
+    // Location filters
+    if (city) {
+      where.city = { equals: city, mode: 'insensitive' };
+    }
+    if (state) {
+      where.state = { equals: state, mode: 'insensitive' };
+    }
+    
+    // Featured filter
+    if (featured === 'true') {
+      where.isFeatured = true;
+    }
+    
+    // Price range filter (based on plan)
+    if (priceRange) {
+      if (priceRange === '$') where.plan = 'free';
+      else if (priceRange === '$$') where.plan = 'basic';
+      else if (priceRange === '$$$') where.plan = 'premium';
+      else if (priceRange === '$$$$') where.plan = 'elite';
+    }
+    
+    // Verified only filter
+    if (verifiedOnly === 'true') {
+      where.isVerified = true;
+    }
+    
+    // Minimum rating filter
+    if (minRating && !isNaN(parseFloat(minRating))) {
+      where.ratingAvg = { gte: parseFloat(minRating) };
+    }
 
     const orderByMap = {
-      createdAt: { createdAt: 'desc' }, rating: { ratingAvg: 'desc' },
-      views: { viewCount: 'desc' }, name: { title: 'asc' },
+      createdAt: { createdAt: 'desc' },
+      rating: { ratingAvg: 'desc' },
+      views: { viewCount: 'desc' },
+      name: { title: 'asc' },
+      relevance: { createdAt: 'desc' }
     };
 
-    const [total, listings] = await Promise.all([
-      prisma.listing.count({ where }),
-      prisma.listing.findMany({
-        where, skip, take,
-        orderBy: [{ isFeatured: 'desc' }, orderByMap[sort] || { createdAt: 'desc' }],
-        select: {
-          id: true, title: true, slug: true, shortDescription: true,
-          phone: true, email: true, website: true,
-          address: true, suburb: true, city: true, state: true, postcode: true,
-          logoUrl: true, coverUrl: true,  // MAKE SURE THESE ARE INCLUDED
-          isFeatured: true, isVerified: true,
-          plan: true, ratingAvg: true, ratingCount: true, viewCount: true,
-          tags: true, status: true, createdAt: true,
-          category: { select: { name: true, slug: true, icon: true } },
-          images: { where: { type: 'banner' }, take: 1, select: { url: true } },
-        },
-      }),
-    ]);
+    // First, get all listings matching basic filters
+    let listings = await prisma.listing.findMany({
+      where,
+      skip,
+      take,
+      orderBy: [{ isFeatured: 'desc' }, orderByMap[sort] || { createdAt: 'desc' }],
+      select: {
+        id: true, title: true, slug: true, shortDescription: true,
+        phone: true, email: true, website: true,
+        address: true, suburb: true, city: true, state: true, postcode: true,
+        logoUrl: true, coverUrl: true,
+        isFeatured: true, isVerified: true,
+        plan: true, ratingAvg: true, ratingCount: true, viewCount: true,
+        tags: true, status: true, createdAt: true,
+        businessHours: true,
+        category: { select: { name: true, slug: true, icon: true } },
+        images: { where: { type: 'banner' }, take: 1, select: { url: true } },
+      },
+    });
+
+    // Get total count before open now filter
+    const total = await prisma.listing.count({ where });
+    
+    // Apply open now filter (post-processing for complex business hours)
+    if (openNow === 'true') {
+      listings = listings.filter(listing => {
+        if (!listing.businessHours) return false;
+        try {
+          const hours = typeof listing.businessHours === 'string' 
+            ? JSON.parse(listing.businessHours) 
+            : listing.businessHours;
+          
+          const now = new Date();
+          const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+          const currentDay = days[now.getDay()];
+          const dayHours = hours[currentDay];
+          
+          if (!dayHours || dayHours === 'Closed') return false;
+          
+          const currentTimeMinutes = now.getHours() * 60 + now.getMinutes();
+          const [openTime, closeTime] = dayHours.split('-').map(t => {
+            const [h, m] = t.split(':').map(Number);
+            return h * 60 + (m || 0);
+          });
+          return currentTimeMinutes >= openTime && currentTimeMinutes <= closeTime;
+        } catch (e) {
+          return false;
+        }
+      });
+    }
 
     // Transform the data to ensure coverUrl is always available
     const transformedListings = listings.map(listing => ({
       ...listing,
       coverUrl: listing.coverUrl || listing.images?.[0]?.url || null,
       logoUrl: listing.logoUrl || null,
+      businessHours: typeof listing.businessHours === 'string' 
+        ? JSON.parse(listing.businessHours) 
+        : listing.businessHours,
     }));
 
-    res.json({ data: transformedListings, pagination: { total, page: parseInt(page), limit: take, totalPages: Math.ceil(total / take) } });
+    res.json({ 
+      data: transformedListings, 
+      pagination: { 
+        total: openNow === 'true' ? listings.length : total, 
+        page: parseInt(page), 
+        limit: take, 
+        totalPages: Math.ceil((openNow === 'true' ? listings.length : total) / take) 
+      } 
+    });
   } catch (err) {
     console.error('Get listings error:', err);
     res.status(500).json({ error: 'Failed to fetch listings' });
   }
 };
+
 // GET /api/listings/my
 const getMyListings = async (req, res) => {
   try {
@@ -76,7 +160,8 @@ const getMyListings = async (req, res) => {
       },
     });
     res.json(listings);
-  } catch {
+  } catch (err) {
+    console.error('Get my listings error:', err);
     res.status(500).json({ error: 'Failed to fetch your listings' });
   }
 };
@@ -107,7 +192,7 @@ const getListingBySlug = async (req, res) => {
 
     if (!listing) return res.status(404).json({ error: 'Listing not found' });
 
-    // Increment view count
+    // Increment view count (non-blocking)
     prisma.listing.update({ where: { id: listing.id }, data: { viewCount: { increment: 1 } } }).catch(() => {});
 
     // Ensure coverUrl and logoUrl are set
@@ -115,6 +200,9 @@ const getListingBySlug = async (req, res) => {
       ...listing,
       coverUrl: listing.coverUrl || listing.images?.find(i => i.type === 'cover' || i.type === 'banner')?.url || null,
       logoUrl: listing.logoUrl || listing.images?.find(i => i.type === 'logo')?.url || null,
+      businessHours: typeof listing.businessHours === 'string' 
+        ? JSON.parse(listing.businessHours) 
+        : listing.businessHours,
     };
 
     res.json(response);
@@ -146,7 +234,7 @@ const createListing = async (req, res) => {
         userId: req.user.id, categoryId: parseInt(category_id),
         title: title.trim(), slug, description, shortDescription,
         phone, email, website, address, suburb, city, state, postcode, abn,
-        businessHours: businessHours || undefined,
+        businessHours: businessHours ? JSON.stringify(businessHours) : undefined,
         tags: Array.isArray(tags) ? tags : tags ? tags.split(',').map(t => t.trim()).filter(Boolean) : [],
         socialFacebook, socialInstagram, socialTwitter, socialLinkedin, socialYoutube, socialWhatsapp,
         status: 'pending',
@@ -196,7 +284,8 @@ const updateListing = async (req, res) => {
     set('phone', phone); set('email', email); set('website', website);
     set('address', address); set('suburb', suburb); set('city', city);
     set('state', state); set('postcode', postcode); set('abn', abn);
-    set('businessHours', businessHours); set('logoUrl', logoUrl); set('coverUrl', coverUrl);
+    set('businessHours', businessHours ? JSON.stringify(businessHours) : undefined);
+    set('logoUrl', logoUrl); set('coverUrl', coverUrl);
     set('socialFacebook', socialFacebook); set('socialInstagram', socialInstagram);
     set('socialTwitter', socialTwitter); set('socialLinkedin', socialLinkedin);
     set('socialYoutube', socialYoutube); set('socialWhatsapp', socialWhatsapp);
@@ -222,18 +311,18 @@ const deleteListing = async (req, res) => {
       return res.status(403).json({ error: 'Not authorized' });
     await prisma.listing.delete({ where: { id } });
     res.json({ message: 'Listing deleted successfully' });
-  } catch {
+  } catch (err) {
+    console.error('Delete listing error:', err);
     res.status(500).json({ error: 'Failed to delete listing' });
   }
 };
 
-// POST /api/listings/:id/images (multipart)
+// POST /api/listings/:id/images
 const addListingImage = async (req, res) => {
   try {
     const { id } = req.params;
     const { type = 'gallery', caption, sortOrder = 0 } = req.body;
 
-    // Verify ownership
     const listing = await prisma.listing.findUnique({ where: { id }, select: { userId: true, title: true } });
     if (!listing) return res.status(404).json({ error: 'Listing not found' });
     const isAdmin = ['admin', 'superadmin'].includes(req.user.role);
@@ -244,40 +333,29 @@ const addListingImage = async (req, res) => {
 
     const url = await uploadToCloud(req.file.path, 'ozbiz/listings');
     
-    // Create the image record
     const image = await prisma.listingImage.create({
       data: { listingId: id, url, type, caption, sortOrder: parseInt(sortOrder) },
     });
 
-    // Update the listing's direct fields based on image type
     if (type === 'logo') {
-      await prisma.listing.update({ 
-        where: { id }, 
-        data: { logoUrl: url } 
-      });
+      await prisma.listing.update({ where: { id }, data: { logoUrl: url } });
     }
     if (type === 'cover' || type === 'banner') {
-      await prisma.listing.update({ 
-        where: { id }, 
-        data: { coverUrl: url } 
-      });
+      await prisma.listing.update({ where: { id }, data: { coverUrl: url } });
     }
 
-    // Return the updated listing data
     const updatedListing = await prisma.listing.findUnique({
       where: { id },
       select: { logoUrl: true, coverUrl: true, images: true }
     });
 
-    res.status(201).json({ 
-      image, 
-      listing: updatedListing 
-    });
+    res.status(201).json({ image, listing: updatedListing });
   } catch (err) {
     console.error('Image upload error:', err);
     res.status(500).json({ error: 'Image upload failed' });
   }
 };
+
 // DELETE /api/listings/:id/images/:imageId
 const deleteListingImage = async (req, res) => {
   try {
@@ -292,7 +370,8 @@ const deleteListingImage = async (req, res) => {
       return res.status(403).json({ error: 'Not authorized' });
     await prisma.listingImage.delete({ where: { id: parseInt(imageId) } });
     res.json({ message: 'Image deleted' });
-  } catch {
+  } catch (err) {
+    console.error('Delete image error:', err);
     res.status(500).json({ error: 'Failed to delete image' });
   }
 };
@@ -356,7 +435,8 @@ const updateProduct = async (req, res) => {
       },
     });
     res.json(updated);
-  } catch {
+  } catch (err) {
+    console.error('Update product error:', err);
     res.status(500).json({ error: 'Failed to update product' });
   }
 };
@@ -375,7 +455,8 @@ const deleteProduct = async (req, res) => {
       return res.status(403).json({ error: 'Not authorized' });
     await prisma.product.delete({ where: { id: productId } });
     res.json({ message: 'Product deleted' });
-  } catch {
+  } catch (err) {
+    console.error('Delete product error:', err);
     res.status(500).json({ error: 'Failed to delete product' });
   }
 };
@@ -398,12 +479,7 @@ const sendEnquiry = async (req, res) => {
       data: { listingId: id, senderName: sender_name, senderEmail: sender_email, senderPhone: sender_phone, subject, message },
     });
     
-    // Increment leadCount on listing
-    await prisma.listing.update({ 
-      where: { id }, 
-      data: { leadCount: { increment: 1 } } 
-    });
-    
+    await prisma.listing.update({ where: { id }, data: { leadCount: { increment: 1 } } });
     prisma.listing.update({ where: { id }, data: { clickCount: { increment: 1 } } }).catch(() => {});
 
     // Email to business owner
@@ -419,7 +495,6 @@ const sendEnquiry = async (req, res) => {
         }).catch(console.error);
       }
     }
-    // Confirmation to sender
     emailSvc.sendEnquiryConfirmation({ to: sender_email, senderName: sender_name, listingTitle: listing.title }).catch(console.error);
 
     res.status(201).json({ message: 'Enquiry sent successfully' });
@@ -428,11 +503,11 @@ const sendEnquiry = async (req, res) => {
     res.status(500).json({ error: 'Failed to send enquiry' });
   }
 };
+
 // POST /api/reviews/:reviewId/helpful
 const markHelpful = async (req, res) => {
   try {
     const { reviewId } = req.params;
-    
     const review = await prisma.review.update({
       where: { id: reviewId },
       data: { helpfulCount: { increment: 1 } }
@@ -443,6 +518,7 @@ const markHelpful = async (req, res) => {
     res.status(500).json({ error: 'Failed to mark as helpful' });
   }
 };
+
 // POST /api/listings/:id/reviews
 const submitReview = async (req, res) => {
   try {
@@ -461,12 +537,13 @@ const submitReview = async (req, res) => {
     }
 
     res.status(201).json({ message: 'Review submitted for moderation' });
-  } catch {
+  } catch (err) {
+    console.error('Submit review error:', err);
     res.status(500).json({ error: 'Failed to submit review' });
   }
 };
 
-// GET /api/listings/:id/enquiries  (owner sees their listing's enquiries)
+// GET /api/listings/:id/enquiries
 const getListingEnquiries = async (req, res) => {
   try {
     const { id } = req.params;
@@ -481,12 +558,13 @@ const getListingEnquiries = async (req, res) => {
       orderBy: { createdAt: 'desc' },
     });
     res.json(enquiries);
-  } catch {
+  } catch (err) {
+    console.error('Get listing enquiries error:', err);
     res.status(500).json({ error: 'Failed to fetch enquiries' });
   }
 };
 
-// POST /api/enquiries/:enquiryId/reply  (owner replies to an enquiry)
+// POST /api/enquiries/:enquiryId/reply
 const replyToEnquiry = async (req, res) => {
   try {
     const { enquiryId } = req.params;
@@ -532,11 +610,13 @@ const getFeaturedProducts = async (req, res) => {
       },
     });
     res.json(products);
-  } catch {
+  } catch (err) {
+    console.error('Get featured products error:', err);
     res.status(500).json({ error: 'Failed to fetch featured products' });
   }
 };
-// GET /api/listings/id/:id - Get listing by ID (for editing)
+
+// GET /api/listings/id/:id
 const getListingById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -550,7 +630,6 @@ const getListingById = async (req, res) => {
     });
     if (!listing) return res.status(404).json({ error: 'Listing not found' });
     
-    // Check if user owns this listing or is admin
     const isOwner = listing.userId === req.user?.id;
     const isAdmin = ['admin', 'superadmin'].includes(req.user?.role);
     
@@ -565,10 +644,7 @@ const getListingById = async (req, res) => {
   }
 };
 
-// Add to routes
-// router.get('/listings/id/:id', authenticate, listings.getListingById);
-// Update getMostVisited function in listingsController.js
-
+// GET /api/homepage/most-visited
 const getMostVisited = async (req, res) => {
   try {
     const listings = await prisma.listing.findMany({
@@ -577,7 +653,7 @@ const getMostVisited = async (req, res) => {
       take: 8,
       select: {
         id: true, title: true, slug: true, shortDescription: true,
-        logoUrl: true, coverUrl: true,  // ADD THESE
+        logoUrl: true, coverUrl: true,
         city: true, state: true,
         viewCount: true, ratingAvg: true, ratingCount: true,
         isFeatured: true, isVerified: true,
@@ -592,11 +668,23 @@ const getMostVisited = async (req, res) => {
 };
 
 module.exports = {
-  getListings, getMyListings, getListingBySlug,
-  createListing, updateListing, deleteListing,
-  addListingImage, deleteListingImage,
-  addProduct, updateProduct, deleteProduct,
-  sendEnquiry, submitReview,
-  getListingEnquiries, replyToEnquiry,
-  getFeaturedProducts, getMostVisited,markHelpful,getListingById,
+  getListings,
+  getMyListings,
+  getListingBySlug,
+  createListing,
+  updateListing,
+  deleteListing,
+  addListingImage,
+  deleteListingImage,
+  addProduct,
+  updateProduct,
+  deleteProduct,
+  sendEnquiry,
+  submitReview,
+  getListingEnquiries,
+  replyToEnquiry,
+  getFeaturedProducts,
+  getMostVisited,
+  markHelpful,
+  getListingById,
 };

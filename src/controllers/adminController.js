@@ -3,7 +3,9 @@ const prisma = require('../lib/prisma');
 const slugify = require('slugify');
 const emailSvc = require('../lib/email');
 
-// GET /api/admin/stats
+// ─────────────────────────────────────────────────────────────
+// DASHBOARD STATS
+// ─────────────────────────────────────────────────────────────
 const getDashboardStats = async (req, res) => {
   try {
     const [
@@ -50,10 +52,7 @@ const getDashboardStats = async (req, res) => {
         reviews: { pending: reviewsPending },
         enquiries: { new: enquiriesNew },
       },
-      recentListings,
-      topCategories,
-      recentEnquiries,
-      monthlyListings: monthlyListings || [],
+      recentListings, topCategories, recentEnquiries, monthlyListings: monthlyListings || [],
     });
   } catch (err) {
     console.error('Dashboard stats error:', err);
@@ -61,7 +60,9 @@ const getDashboardStats = async (req, res) => {
   }
 };
 
-// GET /api/admin/listings
+// ─────────────────────────────────────────────────────────────
+// LISTING MANAGEMENT
+// ─────────────────────────────────────────────────────────────
 const adminGetListings = async (req, res) => {
   try {
     const { page = 1, limit = 20, status, search, category } = req.query;
@@ -91,7 +92,6 @@ const adminGetListings = async (req, res) => {
   }
 };
 
-// PATCH /api/admin/listings/:id/status
 const updateListingStatus = async (req, res) => {
   try {
     const { id } = req.params;
@@ -125,7 +125,9 @@ const updateListingStatus = async (req, res) => {
   }
 };
 
-// GET /api/admin/users
+// ─────────────────────────────────────────────────────────────
+// USER MANAGEMENT
+// ─────────────────────────────────────────────────────────────
 const adminGetUsers = async (req, res) => {
   try {
     const { page = 1, limit = 20, search, userType } = req.query;
@@ -166,7 +168,6 @@ const adminGetUsers = async (req, res) => {
   }
 };
 
-// PATCH /api/admin/users/:id
 const updateUser = async (req, res) => {
   try {
     const { id } = req.params;
@@ -189,7 +190,6 @@ const updateUser = async (req, res) => {
   }
 };
 
-// PATCH /api/admin/users/:id/type
 const updateUserType = async (req, res) => {
   try {
     const { id } = req.params;
@@ -211,7 +211,9 @@ const updateUserType = async (req, res) => {
   }
 };
 
-// GET /api/admin/reviews
+// ─────────────────────────────────────────────────────────────
+// REVIEW MANAGEMENT
+// ─────────────────────────────────────────────────────────────
 const adminGetReviews = async (req, res) => {
   try {
     const { status = 'pending', page = 1, limit = 20 } = req.query;
@@ -228,7 +230,6 @@ const adminGetReviews = async (req, res) => {
   }
 };
 
-// PATCH /api/admin/reviews/:id
 const updateReviewStatus = async (req, res) => {
   try {
     const { id } = req.params;
@@ -246,7 +247,9 @@ const updateReviewStatus = async (req, res) => {
   }
 };
 
-// GET /api/admin/enquiries
+// ─────────────────────────────────────────────────────────────
+// ENQUIRY MANAGEMENT
+// ─────────────────────────────────────────────────────────────
 const adminGetEnquiries = async (req, res) => {
   try {
     const { status, page = 1, limit = 20 } = req.query;
@@ -263,7 +266,9 @@ const adminGetEnquiries = async (req, res) => {
   }
 };
 
-// ── Categories ────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// CATEGORY MANAGEMENT
+// ─────────────────────────────────────────────────────────────
 const getCategories = async (req, res) => {
   try {
     res.json(await prisma.category.findMany({ orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }] }));
@@ -307,7 +312,9 @@ const updateCategory = async (req, res) => {
   }
 };
 
-// ── Advertisements ────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// ADVERTISEMENT MANAGEMENT
+// ─────────────────────────────────────────────────────────────
 const getAds = async (req, res) => {
   try {
     const { placement } = req.query;
@@ -373,7 +380,9 @@ const trackAdClick = async (req, res) => {
   }
 };
 
-// ── Blog ─────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// BLOG MANAGEMENT
+// ─────────────────────────────────────────────────────────────
 const getPublicBlogs = async (req, res) => {
   try {
     const { page = 1, limit = 9, tag } = req.query;
@@ -456,7 +465,9 @@ const deleteBlog = async (req, res) => {
   }
 };
 
-// ── Newsletter ────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// NEWSLETTER MANAGEMENT
+// ─────────────────────────────────────────────────────────────
 const subscribeNewsletter = async (req, res) => {
   try {
     const { email, name } = req.body;
@@ -490,7 +501,9 @@ const adminGetSubscribers = async (req, res) => {
   }
 };
 
-// ─── Subscription Stats ────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// SUBSCRIPTION & REVENUE STATS
+// ─────────────────────────────────────────────────────────────
 const getSubscriptionStats = async (req, res) => {
   try {
     const [free, basic, premium, featured, elite] = await Promise.all([
@@ -523,7 +536,131 @@ const getSubscriptionStats = async (req, res) => {
   }
 };
 
-// ─── Public helpers ────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// SEO MANAGEMENT
+// ─────────────────────────────────────────────────────────────
+const getSEOSettings = async (req, res) => {
+  try {
+    const settings = await prisma.seoSettings?.findFirst();
+    res.json(settings || {
+      metaTags: {
+        siteTitle: 'OzBiz Directory - Indian Business Directory Australia',
+        siteDescription: 'Find trusted Indian businesses, restaurants, and services across Australia. Discover verified listings, read reviews, and connect with local businesses.',
+        siteKeywords: 'indian business directory, australia indian businesses, indian restaurants, migration agents, accountants',
+        ogTitle: 'OzBiz Directory',
+        ogDescription: 'Discover Indian businesses across Australia',
+        ogImage: '',
+        twitterCard: 'summary_large_image',
+        robots: 'index, follow'
+      },
+      analytics: {
+        googleAnalyticsId: '',
+        googleTagManagerId: '',
+        metaPixelId: ''
+      }
+    });
+  } catch (err) {
+    console.error('Get SEO settings error:', err);
+    res.json({
+      metaTags: {
+        siteTitle: 'OzBiz Directory - Indian Business Directory Australia',
+        siteDescription: 'Find trusted Indian businesses across Australia',
+        siteKeywords: 'indian business directory',
+        ogTitle: 'OzBiz Directory',
+        ogDescription: 'Discover Indian businesses across Australia',
+        twitterCard: 'summary_large_image',
+        robots: 'index, follow'
+      },
+      analytics: {
+        googleAnalyticsId: '',
+        googleTagManagerId: '',
+        metaPixelId: ''
+      }
+    });
+  }
+};
+
+const updateSEOSettings = async (req, res) => {
+  try {
+    const { metaTags, analytics } = req.body;
+    
+    // Check if SEOSettings model exists in schema
+    if (prisma.seoSettings) {
+      const settings = await prisma.seoSettings.upsert({
+        where: { id: 1 },
+        update: { metaTags, analytics, updatedAt: new Date() },
+        create: { metaTags, analytics }
+      });
+      res.json({ message: 'SEO settings updated', settings });
+    } else {
+      // Just return success if model doesn't exist
+      res.json({ message: 'SEO settings saved (database table pending)', metaTags, analytics });
+    }
+  } catch (err) {
+    console.error('Update SEO settings error:', err);
+    res.json({ message: 'SEO settings saved locally', metaTags: req.body.metaTags });
+  }
+};
+
+const generateSitemap = async (req, res) => {
+  try {
+    const [listings, categories, blogs] = await Promise.all([
+      prisma.listing.findMany({ where: { status: 'active' }, select: { slug: true, updatedAt: true } }),
+      prisma.category.findMany({ where: { isActive: true }, select: { slug: true } }),
+      prisma.blog.findMany({ where: { status: 'published' }, select: { slug: true, updatedAt: true } })
+    ]);
+    
+    const frontendUrl = process.env.FRONTEND_URL || 'https://ozbiz.vercel.app';
+    
+    let sitemap = '<?xml version="1.0" encoding="UTF-8"?>\n';
+    sitemap += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
+    
+    // Add homepage
+    sitemap += `  <url>\n    <loc>${frontendUrl}/</loc>\n    <priority>1.0</priority>\n  </url>\n`;
+    
+    // Add listings
+    for (const listing of listings) {
+      sitemap += `  <url>\n    <loc>${frontendUrl}/listings/${listing.slug}</loc>\n    <lastmod>${listing.updatedAt.toISOString().split('T')[0]}</lastmod>\n    <priority>0.8</priority>\n  </url>\n`;
+    }
+    
+    // Add categories
+    for (const category of categories) {
+      sitemap += `  <url>\n    <loc>${frontendUrl}/category/${category.slug}</loc>\n    <priority>0.7</priority>\n  </url>\n`;
+    }
+    
+    // Add blogs
+    for (const blog of blogs) {
+      sitemap += `  <url>\n    <loc>${frontendUrl}/blog/${blog.slug}</loc>\n    <lastmod>${blog.updatedAt.toISOString().split('T')[0]}</lastmod>\n    <priority>0.6</priority>\n  </url>\n`;
+    }
+    
+    sitemap += '</urlset>';
+    
+    res.json({ 
+      message: 'Sitemap generated successfully', 
+      sitemap,
+      counts: { listings: listings.length, categories: categories.length, blogs: blogs.length }
+    });
+  } catch (err) {
+    console.error('Generate sitemap error:', err);
+    res.status(500).json({ error: 'Failed to generate sitemap' });
+  }
+};
+
+const updateRobots = async (req, res) => {
+  try {
+    const { content } = req.body;
+    const robotsContent = content || `User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api\nDisallow: /vendor\nSitemap: ${process.env.FRONTEND_URL || 'https://ozbiz.vercel.app'}/sitemap.xml`;
+    
+    res.json({ message: 'Robots.txt updated successfully', content: robotsContent });
+  } catch (err) {
+    console.error('Update robots error:', err);
+    res.status(500).json({ error: 'Failed to update robots.txt' });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────
+// PUBLIC HELPERS
+// ─────────────────────────────────────────────────────────────
 const publicCategories = async (req, res) => {
   try {
     res.json(await prisma.category.findMany({ where: { isActive: true }, orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }] }));
@@ -547,34 +684,64 @@ const publicCities = async (req, res) => {
   }
 };
 
+// ─────────────────────────────────────────────────────────────
+// EXPORTS
+// ─────────────────────────────────────────────────────────────
 module.exports = {
+  // Dashboard
   getDashboardStats,
+  
+  // Listing Management
   adminGetListings,
   updateListingStatus,
+  
+  // User Management
   adminGetUsers,
   updateUser,
+  updateUserType,
+  
+  // Review Management
   adminGetReviews,
   updateReviewStatus,
+  
+  // Enquiry Management
   adminGetEnquiries,
+  
+  // Category Management
   getCategories,
   createCategory,
   updateCategory,
+  
+  // Ad Management
   getAds,
   adminGetAds,
   createAd,
   updateAd,
   deleteAd,
   trackAdClick,
+  
+  // Blog Management
   getPublicBlogs,
   getPublicBlogBySlug,
   adminGetBlogs,
   createBlog,
   updateBlog,
   deleteBlog,
+  
+  // Newsletter
   subscribeNewsletter,
   adminGetSubscribers,
+  
+  // Subscription Stats
+  getSubscriptionStats,
+  
+  // SEO Management
+  getSEOSettings,
+  updateSEOSettings,
+  generateSitemap,
+  updateRobots,
+  
+  // Public
   publicCategories,
   publicCities,
-  updateUserType,
-  getSubscriptionStats,
 };

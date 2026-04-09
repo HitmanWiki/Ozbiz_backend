@@ -93,6 +93,10 @@ router.delete('/user/search-history', authenticate, userController.clearSearchHi
 router.get('/user/notification-settings', authenticate, userController.getNotificationSettings);
 router.put('/user/notification-settings', authenticate, userController.updateNotificationSettings);
 
+// Notifications
+router.get('/user/notifications', authenticate, userController.getNotifications);
+router.patch('/user/notifications/:id/read', authenticate, userController.markNotificationRead);
+router.post('/user/notifications/mark-all-read', authenticate, userController.markAllNotificationsRead);
 // ============================================================
 // VENDOR FEATURES
 // ============================================================
@@ -165,6 +169,11 @@ adminRouter.get('/newsletter/subscribers', admin.adminGetSubscribers);
 // Subscription Stats
 adminRouter.get('/subscription/stats', admin.getSubscriptionStats);
 
+// SEO Management
+adminRouter.get('/seo', admin.getSEOSettings);
+adminRouter.post('/seo', admin.updateSEOSettings);
+adminRouter.post('/generate-sitemap', admin.generateSitemap);
+adminRouter.post('/update-robots', admin.updateRobots);
 router.use('/admin', adminRouter);
 
 module.exports = router;

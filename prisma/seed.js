@@ -25,10 +25,6 @@ const categories = [
 ];
 
 // Complete listings with all details
-// backend/prisma/seed.js - Updated with proper banner images for all listings
-
-// ... (keep all the categories, etc. same, just update listingsData)
-
 const listingsData = [
   {
     slug: 'spice-route-indian-restaurant',
@@ -62,11 +58,46 @@ const listingsData = [
       saturday: '11:30-23:00',
       sunday: '12:00-21:30'
     }),
-    // HIGH-QUALITY BANNER IMAGE for homepage
     logoUrl: 'https://images.unsplash.com/photo-1600891964599-f61ba0e24092?w=200&h=200&fit=crop',
     coverUrl: 'https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=800&h=400&fit=crop',
     socialFacebook: 'https://facebook.com/spiceroute',
-    socialInstagram: 'https://instagram.com/spiceroute'
+    socialInstagram: 'https://instagram.com/spiceroute',
+    ownerEmail: 'raj@example.com'  // Assign to Raj
+  },
+  {
+    slug: 'punjabi-tandoor',
+    title: 'Punjabi Tandoor Restaurant',
+    category: 'restaurants-cafes',
+    city: 'Sydney',
+    description: `Experience the true flavors of Punjab at Punjabi Tandoor. Our family-run restaurant brings you authentic Punjabi cuisine made with love and tradition.`,
+    shortDescription: 'Authentic Punjabi cuisine in Sydney. Famous for tandoori chicken, dal makhani, and freshly baked naan.',
+    phone: '02 9876 5432',
+    email: 'info@punjabitandoor.com.au',
+    website: 'https://punjabitandoor.com.au',
+    address: '78 Harris Street',
+    suburb: 'Harris Park',
+    state: 'NSW',
+    postcode: '2150',
+    status: 'active',
+    isFeatured: true,
+    plan: 'basic',
+    ratingAvg: 4.7,
+    ratingCount: 89,
+    viewCount: 1890,
+    leadCount: 56,
+    tags: ['punjabi food', 'tandoori', 'north indian', 'family restaurant', 'halal'],
+    businessHours: JSON.stringify({
+      monday: '17:00-22:30',
+      tuesday: '17:00-22:30',
+      wednesday: '17:00-22:30',
+      thursday: '17:00-22:30',
+      friday: '12:00-23:00',
+      saturday: '12:00-23:00',
+      sunday: '12:00-22:00'
+    }),
+    logoUrl: 'https://images.unsplash.com/photo-1600891964599-f61ba0e24092?w=200&h=200&fit=crop',
+    coverUrl: 'https://images.unsplash.com/photo-1567188040759-fb8a883dc6d8?w=800&h=400&fit=crop',
+    ownerEmail: 'harpreet@singhlaw.com.au'  // Assign to Harpreet
   },
   {
     slug: 'singh-associates-migration-lawyers',
@@ -103,7 +134,8 @@ const listingsData = [
     logoUrl: 'https://images.unsplash.com/photo-1450101499163-c8848c66ca85?w=200&h=200&fit=crop',
     coverUrl: 'https://images.unsplash.com/photo-1551836022-d5d88e9218df?w=800&h=400&fit=crop',
     socialFacebook: 'https://facebook.com/singhlaw',
-    socialLinkedin: 'https://linkedin.com/company/singh-associates'
+    socialLinkedin: 'https://linkedin.com/company/singh-associates',
+    ownerEmail: 'harpreet@singhlaw.com.au'  // Assign to Harpreet
   },
   {
     slug: 'rajs-accounting-tax-services',
@@ -137,7 +169,8 @@ const listingsData = [
       sunday: 'Closed'
     }),
     logoUrl: 'https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=200&h=200&fit=crop',
-    coverUrl: 'https://images.unsplash.com/photo-1554224154-26032ffc0a07?w=800&h=400&fit=crop'
+    coverUrl: 'https://images.unsplash.com/photo-1554224154-26032ffc0a07?w=800&h=400&fit=crop',
+    ownerEmail: 'raj@example.com'  // Assign to Raj
   },
   {
     slug: 'melbourne-indian-grocery',
@@ -170,7 +203,8 @@ const listingsData = [
       sunday: '10:00-18:00'
     }),
     logoUrl: 'https://images.unsplash.com/photo-1586201375761-83865001e8ac?w=200&h=200&fit=crop',
-    coverUrl: 'https://images.unsplash.com/photo-1532336414038-cf19250c5757?w=800&h=400&fit=crop'
+    coverUrl: 'https://images.unsplash.com/photo-1532336414038-cf19250c5757?w=800&h=400&fit=crop',
+    ownerEmail: 'raj@example.com'  // Assign to Raj
   },
   {
     slug: 'priyas-beauty-salon',
@@ -207,41 +241,8 @@ const listingsData = [
     logoUrl: 'https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?w=200&h=200&fit=crop',
     coverUrl: 'https://images.unsplash.com/photo-1595476108010-b4d1f102b1b1?w=800&h=400&fit=crop',
     socialInstagram: 'https://instagram.com/priyasbeauty',
-    socialFacebook: 'https://facebook.com/priyasbeauty'
-  },
-  {
-    slug: 'punjabi-tandoor',
-    title: 'Punjabi Tandoor Restaurant',
-    category: 'restaurants-cafes',
-    city: 'Sydney',
-    description: `Experience the true flavors of Punjab at Punjabi Tandoor. Our family-run restaurant brings you authentic Punjabi cuisine made with love and tradition.`,
-    shortDescription: 'Authentic Punjabi cuisine in Sydney. Famous for tandoori chicken, dal makhani, and freshly baked naan.',
-    phone: '02 9876 5432',
-    email: 'info@punjabitandoor.com.au',
-    website: 'https://punjabitandoor.com.au',
-    address: '78 Harris Street',
-    suburb: 'Harris Park',
-    state: 'NSW',
-    postcode: '2150',
-    status: 'active',
-    isFeatured: true,
-    plan: 'basic',
-    ratingAvg: 4.7,
-    ratingCount: 89,
-    viewCount: 1890,
-    leadCount: 56,
-    tags: ['punjabi food', 'tandoori', 'north indian', 'family restaurant', 'halal'],
-    businessHours: JSON.stringify({
-      monday: '17:00-22:30',
-      tuesday: '17:00-22:30',
-      wednesday: '17:00-22:30',
-      thursday: '17:00-22:30',
-      friday: '12:00-23:00',
-      saturday: '12:00-23:00',
-      sunday: '12:00-22:00'
-    }),
-    logoUrl: 'https://images.unsplash.com/photo-1600891964599-f61ba0e24092?w=200&h=200&fit=crop',
-    coverUrl: 'https://images.unsplash.com/photo-1567188040759-fb8a883dc6d8?w=800&h=400&fit=crop'
+    socialFacebook: 'https://facebook.com/priyasbeauty',
+    ownerEmail: 'priya@priyasbeauty.com.au'  // Assign to Priya
   }
 ];
 
@@ -356,6 +357,7 @@ async function main() {
     },
   });
   console.log('✅ Super Admin created');
+  console.log('   Email: admin@ozbiz.com.au / Password: Admin@123456\n');
 
   // 2. Create Consumer Users
   const consumerHash = await bcrypt.hash('Consumer@123', 12);
@@ -381,21 +383,24 @@ async function main() {
     });
   }
   console.log(`✅ ${consumers.length} Consumer users created`);
+  console.log('   Password for all consumers: Consumer@123\n');
 
   // 3. Create Vendor Users
   const vendorHash = await bcrypt.hash('Vendor@123', 12);
-  const vendors = [
+  
+  // First, create the vendor users
+  const vendorUsers = [
     { 
       name: 'Raj Kumar', 
       email: 'raj@example.com',
-      businessName: 'Spice Route Restaurant',
+      businessName: 'Spice Route Restaurant & Accounting Services',
       businessABN: '12 345 678 901',
       subscriptionPlan: 'premium'
     },
     { 
       name: 'Harpreet Singh', 
       email: 'harpreet@singhlaw.com.au',
-      businessName: 'Singh & Associates Migration Lawyers',
+      businessName: 'Singh & Associates Migration Lawyers & Punjabi Tandoor',
       businessABN: '23 456 789 012',
       subscriptionPlan: 'elite'
     },
@@ -408,8 +413,9 @@ async function main() {
     }
   ];
   
-  for (const vendor of vendors) {
-    await prisma.user.upsert({
+  const vendorMap = {};
+  for (const vendor of vendorUsers) {
+    const created = await prisma.user.upsert({
       where: { email: vendor.email },
       update: {},
       create: {
@@ -425,8 +431,10 @@ async function main() {
         emailVerified: true,
       },
     });
+    vendorMap[vendor.email] = created.id;
+    console.log(`✅ Vendor created: ${vendor.name} (${vendor.email})`);
   }
-  console.log(`✅ ${vendors.length} Vendor users created`);
+  console.log('   Password for all vendors: Vendor@123\n');
 
   // 4. Create categories
   for (let i = 0; i < categories.length; i++) {
@@ -436,7 +444,7 @@ async function main() {
       create: { ...categories[i], sortOrder: i, isActive: true },
     });
   }
-  console.log(`✅ ${categories.length} categories created`);
+  console.log(`✅ ${categories.length} categories created\n`);
 
   // Get category references
   const cats = {};
@@ -444,32 +452,25 @@ async function main() {
     cats[cat.slug] = await prisma.category.findUnique({ where: { slug: cat.slug } });
   }
 
-  // Get vendor user IDs
-  const vendorUsers = await prisma.user.findMany({
-    where: { userType: 'vendor' },
-    select: { id: true, email: true }
-  });
-  
-  const vendorMap = {};
-  for (const vendor of vendorUsers) {
-    vendorMap[vendor.email] = vendor.id;
-  }
-
-  // 5. Create listings
-  // Update the listingOwnerMap in seed.js
-const listingOwnerMap = {
-  'spice-route-indian-restaurant': 'raj@example.com',
-  'singh-associates-migration-lawyers': 'harpreet@singhlaw.com.au',
-  'rajs-accounting-tax-services': 'raj@example.com',
-  'melbourne-indian-grocery': 'raj@example.com',
-  'priyas-beauty-salon': 'priya@priyasbeauty.com.au',
-  'punjabi-tandoor': 'harpreet@singhlaw.com.au'
-};
+  // 5. Create listings with proper vendor assignment
+  const listingOwnerMap = {
+    'spice-route-indian-restaurant': 'raj@example.com',
+    'punjabi-tandoor': 'harpreet@singhlaw.com.au',
+    'singh-associates-migration-lawyers': 'harpreet@singhlaw.com.au',
+    'rajs-accounting-tax-services': 'raj@example.com',
+    'melbourne-indian-grocery': 'raj@example.com',
+    'priyas-beauty-salon': 'priya@priyasbeauty.com.au'
+  };
 
   const createdListings = {};
   for (const data of listingsData) {
     const ownerEmail = listingOwnerMap[data.slug];
     const userId = vendorMap[ownerEmail];
+    
+    if (!userId) {
+      console.error(`❌ No vendor found for email: ${ownerEmail}`);
+      continue;
+    }
     
     const listing = await prisma.listing.upsert({
       where: { slug: data.slug },
@@ -507,8 +508,9 @@ const listingOwnerMap = {
       },
     });
     createdListings[data.slug] = listing;
-    console.log(`✅ Listing: ${data.title} (Owner: ${data.title === 'Spice Route' ? 'Raj Kumar' : 'Harpreet Singh'})`);
+    console.log(`✅ Listing: ${data.title} (Owner: ${ownerEmail})`);
   }
+  console.log('');
 
   // 6. Add products
   for (const [slug, products] of Object.entries(productsByListing)) {
@@ -522,6 +524,7 @@ const listingOwnerMap = {
       console.log(`✅ Added ${products.length} products to ${slug}`);
     }
   }
+  console.log('');
 
   // 7. Add reviews
   for (const [slug, reviews] of Object.entries(reviewsByListing)) {
@@ -535,6 +538,7 @@ const listingOwnerMap = {
       console.log(`✅ Added reviews to ${slug}`);
     }
   }
+  console.log('');
 
   // 8. Add blog posts
   for (const post of blogPosts) {
@@ -548,7 +552,7 @@ const listingOwnerMap = {
       },
     });
   }
-  console.log(`✅ ${blogPosts.length} blog posts created`);
+  console.log(`✅ ${blogPosts.length} blog posts created\n`);
 
   // 9. Add advertisements
   for (const ad of advertisements) {
@@ -556,7 +560,7 @@ const listingOwnerMap = {
       data: ad,
     });
   }
-  console.log(`✅ ${advertisements.length} ads created`);
+  console.log(`✅ ${advertisements.length} ads created\n`);
 
   // 10. Update category counts
   for (const cat of Object.values(cats)) {
@@ -580,33 +584,27 @@ const listingOwnerMap = {
   console.log(`   • Blogs: ${await prisma.blog.count()}`);
   console.log(`   • Ads: ${await prisma.advertisement.count()}`);
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('🔑 Login Credentials:');
+  console.log('🔑 LOGIN CREDENTIALS:');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('👑 ADMIN ACCESS:');
+  console.log('👑 SUPER ADMIN:');
   console.log('   Email: admin@ozbiz.com.au');
   console.log('   Password: Admin@123456');
-  console.log('   Role: Super Admin (can access everything)');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('👤 CONSUMER ACCOUNTS (Browse & Review):');
+  console.log('👤 CONSUMER ACCOUNTS:');
   console.log('   Email: amit@example.com / Password: Consumer@123');
   console.log('   Email: priya@example.com / Password: Consumer@123');
   console.log('   Email: rajesh@example.com / Password: Consumer@123');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('🏢 VENDOR ACCOUNTS (List & Manage):');
+  console.log('🏢 VENDOR ACCOUNTS:');
   console.log('   Email: raj@example.com / Password: Vendor@123');
-  console.log('   → Business: Spice Route Restaurant, Raj\'s Accounting');
+  console.log('   → Businesses: Spice Route Restaurant, Raj\'s Accounting, Melbourne Indian Grocery');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log('   Email: harpreet@singhlaw.com.au / Password: Vendor@123');
-  console.log('   → Business: Singh & Associates Migration, Punjabi Tandoor');
+  console.log('   → Businesses: Singh & Associates Migration, Punjabi Tandoor');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log('   Email: priya@priyasbeauty.com.au / Password: Vendor@123');
   console.log('   → Business: Priya\'s Beauty Salon');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('📝 Features ready to test:');
-  console.log('   • Consumers can browse, review, save favorites');
-  console.log('   • Vendors can manage listings, leads, reviews');
-  console.log('   • Admins can moderate all content');
-  console.log('   • Subscription plans available for vendors');
 }
 
 main()
