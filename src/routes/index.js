@@ -9,6 +9,9 @@ const listings = require('../controllers/listingsController');
 const admin = require('../controllers/adminController');
 const userController = require('../controllers/userController');
 const chatbot = require('../controllers/chatbotController');
+const pushController = require('../controllers/pushController');
+const invoiceController = require('../controllers/invoiceController');
+const paymentController = require('../controllers/paymentController');
 
 // ─── Auth ──────────────────────────────────────────────────────────────
 router.post('/auth/register', auth.register);
@@ -72,6 +75,10 @@ router.post('/reviews/:reviewId/helpful', listings.markHelpful);
 // ─── Enquiry reply (owner) ─────────────────────────────────────────────
 router.post('/enquiries/:enquiryId/reply', authenticate, listings.replyToEnquiry);
 
+router.post('/payment/create-checkout', authenticate, paymentController.createCheckoutSession);
+router.post('/payment/create-manual', authenticate, paymentController.createManualCheckout);
+router.post('/payment/verify', authenticate, paymentController.verifyPayment);
+router.post('/payment/webhook', express.raw({ type: 'application/json' }), paymentController.handleWebhook);
 // ============================================================
 // CONSUMER FEATURES
 // ============================================================
@@ -114,6 +121,13 @@ router.get('/vendor/reviews', authenticate, userController.getVendorReviews);
 router.post('/vendor/reviews/:reviewId/reply', authenticate, userController.replyToReview);
 router.post('/vendor/reviews/:reviewId/flag', authenticate, userController.flagReviewAsSpam);
 
+router.post('/notifications/subscribe', authenticate, pushController.subscribe);
+router.post('/notifications/unsubscribe', authenticate, pushController.unsubscribe);
+router.post('/notifications/test', authenticate, pushController.testNotification);
+
+
+router.get('/invoices', authenticate, invoiceController.getUserInvoices);
+router.get('/invoices/:subscriptionId/download', authenticate, invoiceController.generateInvoice);
 // ============================================================
 // SUBSCRIPTION FEATURES
 // ============================================================
@@ -174,6 +188,19 @@ adminRouter.get('/seo', admin.getSEOSettings);
 adminRouter.post('/seo', admin.updateSEOSettings);
 adminRouter.post('/generate-sitemap', admin.generateSitemap);
 adminRouter.post('/update-robots', admin.updateRobots);
+
+// Email Templates
+adminRouter.get('/email-templates', admin.getEmailTemplates);
+adminRouter.get('/email-templates/:templateId', admin.getEmailTemplate);
+adminRouter.post('/email-templates/:templateId', admin.updateEmailTemplate);
+adminRouter.post('/email-templates/:templateId/reset', admin.resetEmailTemplate);
+adminRouter.post('/email-templates/test', admin.testEmailTemplate);
+adminRouter.get('/subscription/monthly', admin.getMonthlyRevenue);
+
+// Export Reports
+adminRouter.get('/export/leads', admin.exportLeads);
+adminRouter.get('/export/users', admin.exportUsers);
+
 router.use('/admin', adminRouter);
 
 module.exports = router;

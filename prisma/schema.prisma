@@ -1,5 +1,5 @@
 // prisma/schema.prisma
-// OzBiz Directory v4 — Complete Schema with Consumer/Vendor Distinction
+// OzBiz Directory v5 — Complete Schema with All Features
 
 generator client {
   provider = "prisma-client-js"
@@ -20,9 +20,9 @@ enum Role {
 }
 
 enum UserType {
-  consumer      // Regular customer - browses, reviews, saves favorites
-  vendor        // Business owner - can list businesses, manage leads
-  both          // Can do both (for advanced users)
+  consumer
+  vendor
+  both
 }
 
 enum AuthProvider {
@@ -114,6 +114,8 @@ model User {
   passwordResetToken    String?      @map("password_reset_token")
   passwordResetExpiry   DateTime?    @map("password_reset_expiry")
   newsletterSubscribed  Boolean      @default(false) @map("newsletter_subscribed")
+  twoFactorSecret       String?      @map("two_factor_secret")
+  twoFactorEnabled      Boolean      @default(false) @map("two_factor_enabled")
   
   // Vendor-specific fields
   businessName          String?      @map("business_name") @db.VarChar(200)
@@ -136,9 +138,21 @@ model User {
   notificationSettings   NotificationSettings?
   vendorAnalytics        VendorAnalytics?
   subscriptionHistory    SubscriptionHistory[]
-  leadNotes              LeadNote[]  // ADD THIS LINE
+  leadNotes              LeadNote[]
+  notifications          Notification[]
+  pushSubscriptions      PushSubscription[]
 
   @@map("users")
+}
+
+model EmailTemplate {
+  id        String   @id
+  name      String
+  subject   String
+  body      String   @db.Text
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("email_templates")
 }
 
 model Category {
@@ -173,12 +187,10 @@ model Listing {
   isFeatured       Boolean       @default(false) @map("is_featured")
   isVerified       Boolean       @default(false) @map("is_verified")
 
-  // Contact
   phone   String? @db.VarChar(30)
   email   String? @db.VarChar(255)
   website String? @db.VarChar(500)
 
-  // Location
   address   String?  @db.Text
   suburb    String?  @db.VarChar(100)
   city      String?  @db.VarChar(100)
@@ -188,12 +200,10 @@ model Listing {
   latitude  Decimal? @db.Decimal(10, 8)
   longitude Decimal? @db.Decimal(11, 8)
 
-  // Business details
   abn          String? @db.VarChar(30)
   businessHours Json?  @map("business_hours")
   tags         String[] @default([])
 
-  // Social media links
   socialFacebook  String? @map("social_facebook") @db.VarChar(300)
   socialInstagram String? @map("social_instagram") @db.VarChar(300)
   socialTwitter   String? @map("social_twitter") @db.VarChar(300)
@@ -201,18 +211,15 @@ model Listing {
   socialYoutube   String? @map("social_youtube") @db.VarChar(300)
   socialWhatsapp  String? @map("social_whatsapp") @db.VarChar(50)
 
-  // Stats
   viewCount   Int     @default(0) @map("view_count")
   clickCount  Int     @default(0) @map("click_count")
   leadCount   Int     @default(0) @map("lead_count")
   ratingAvg   Decimal @default(0) @map("rating_avg") @db.Decimal(3, 2)
   ratingCount Int     @default(0) @map("rating_count")
 
-  // Plan
   plan          ListingPlan @default(free)
   planExpiresAt DateTime?   @map("plan_expires_at")
 
-  // Primary images (quick access)
   logoUrl  String? @map("logo_url") @db.VarChar(500)
   coverUrl String? @map("cover_url") @db.VarChar(500)
 
@@ -399,12 +406,12 @@ model Favorite {
 }
 
 model SearchHistory {
-  id         String   @id @default(uuid())
-  userId     String   @map("user_id")
-  query      String
-  filters    Json?    @map("filters")
-  resultsCount Int    @default(0) @map("results_count")
-  searchedAt DateTime @default(now()) @map("searched_at")
+  id           String   @id @default(uuid())
+  userId       String   @map("user_id")
+  query        String
+  filters      Json?    @map("filters")
+  resultsCount Int      @default(0) @map("results_count")
+  searchedAt   DateTime @default(now()) @map("searched_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -428,6 +435,40 @@ model NotificationSettings {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("notification_settings")
+}
+
+// ============================================================
+// NOTIFICATION MODELS
+// ============================================================
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  title     String
+  message   String   @db.Text
+  type      String   @default("info")
+  isRead    Boolean  @default(false) @map("is_read")
+  linkUrl   String?  @map("link_url") @db.VarChar(500)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("notifications")
+}
+
+model PushSubscription {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  endpoint  String   @db.VarChar(500)
+  keys      Json
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, endpoint])
+  @@map("push_subscriptions")
 }
 
 // ============================================================
@@ -455,7 +496,7 @@ model SubscriptionHistory {
   plan          ListingPlan
   amount        Float
   currency      String      @default("AUD")
-  status        String      @default("active") // active, cancelled, expired
+  status        String      @default("active")
   startDate     DateTime    @default(now()) @map("start_date")
   endDate       DateTime?   @map("end_date")
   stripePaymentId String?    @map("stripe_payment_id")
@@ -492,4 +533,17 @@ model LeadNote {
   vendor  User    @relation(fields: [vendorId], references: [id], onDelete: Cascade)
 
   @@map("lead_notes")
+}
+
+// ============================================================
+// SEO MODELS
+// ============================================================
+
+model SeoSettings {
+  id        Int      @id @default(1)
+  metaTags  Json
+  analytics Json
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("seo_settings")
 }

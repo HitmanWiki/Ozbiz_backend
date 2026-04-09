@@ -1,8 +1,10 @@
-// src/controllers/authController.js
+// backend/src/controllers/authController.js
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 const { OAuth2Client } = require('google-auth-library');
+const speakeasy = require('speakeasy');
+const QRCode = require('qrcode');
 const prisma = require('../lib/prisma');
 const emailSvc = require('../lib/email');
 
@@ -20,7 +22,8 @@ const safeUser = (u) => ({
   role: u.role,
   userType: u.userType,
   businessName: u.businessName,
-  subscriptionPlan: u.subscriptionPlan
+  subscriptionPlan: u.subscriptionPlan,
+  twoFactorEnabled: u.twoFactorEnabled || false
 });
 
 // POST /api/auth/register
@@ -33,12 +36,10 @@ const register = async (req, res) => {
     if (password.length < 8)
       return res.status(400).json({ error: 'Password must be at least 8 characters' });
     
-    // Validate userType
     if (!['consumer', 'vendor', 'both'].includes(userType)) {
-      return res.status(400).json({ error: 'Invalid user type. Must be consumer, vendor, or both' });
+      return res.status(400).json({ error: 'Invalid user type' });
     }
     
-    // If vendor, require business name
     if (userType === 'vendor' || userType === 'both') {
       if (!businessName) {
         return res.status(400).json({ error: 'Business name is required for vendor accounts' });
@@ -97,10 +98,127 @@ const login = async (req, res) => {
     const valid = await bcrypt.compare(password, user.passwordHash);
     if (!valid) return res.status(401).json({ error: 'Invalid email or password' });
 
+    // Check if 2FA is enabled
+    if (user.twoFactorEnabled) {
+      return res.json({ 
+        requiresTwoFactor: true, 
+        userId: user.id,
+        message: '2FA verification required' 
+      });
+    }
+
     res.json({ token: generateToken(user.id), user: safeUser(user) });
   } catch (err) {
     console.error('Login error:', err);
     res.status(500).json({ error: 'Login failed' });
+  }
+};
+
+// POST /api/auth/verify-2fa-login
+const verifyTwoFactorLogin = async (req, res) => {
+  try {
+    const { userId, token } = req.body;
+    if (!userId || !token) {
+      return res.status(400).json({ error: 'User ID and token are required' });
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const verified = speakeasy.totp.verify({
+      secret: user.twoFactorSecret,
+      encoding: 'base32',
+      token: token
+    });
+
+    if (verified) {
+      res.json({ token: generateToken(user.id), user: safeUser(user) });
+    } else {
+      res.status(401).json({ error: 'Invalid 2FA code' });
+    }
+  } catch (err) {
+    console.error('2FA login error:', err);
+    res.status(500).json({ error: '2FA verification failed' });
+  }
+};
+
+// POST /api/auth/enable-2fa
+const enable2FA = async (req, res) => {
+  try {
+    const secret = speakeasy.generateSecret({ name: `OzBiz:${req.user.email}` });
+    
+    await prisma.user.update({
+      where: { id: req.user.id },
+      data: { twoFactorSecret: secret.base32, twoFactorEnabled: false }
+    });
+    
+    const qrCodeUrl = await QRCode.toDataURL(secret.otpauth_url);
+    res.json({ secret: secret.base32, qrCode: qrCodeUrl });
+  } catch (err) {
+    console.error('Enable 2FA error:', err);
+    res.status(500).json({ error: 'Failed to setup 2FA' });
+  }
+};
+
+// POST /api/auth/verify-2fa
+const verify2FA = async (req, res) => {
+  try {
+    const { token } = req.body;
+    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+    
+    if (!user.twoFactorSecret) {
+      return res.status(400).json({ error: '2FA not setup' });
+    }
+    
+    const verified = speakeasy.totp.verify({
+      secret: user.twoFactorSecret,
+      encoding: 'base32',
+      token: token
+    });
+    
+    if (verified) {
+      await prisma.user.update({
+        where: { id: req.user.id },
+        data: { twoFactorEnabled: true }
+      });
+      res.json({ success: true, message: '2FA enabled successfully' });
+    } else {
+      res.status(400).json({ error: 'Invalid token' });
+    }
+  } catch (err) {
+    console.error('Verify 2FA error:', err);
+    res.status(500).json({ error: 'Verification failed' });
+  }
+};
+
+// POST /api/auth/disable-2fa
+const disable2FA = async (req, res) => {
+  try {
+    const { token } = req.body;
+    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+    
+    if (!user.twoFactorSecret) {
+      return res.status(400).json({ error: '2FA not enabled' });
+    }
+    
+    const verified = speakeasy.totp.verify({
+      secret: user.twoFactorSecret,
+      encoding: 'base32',
+      token: token
+    });
+    
+    if (verified || !user.twoFactorEnabled) {
+      await prisma.user.update({
+        where: { id: req.user.id },
+        data: { twoFactorSecret: null, twoFactorEnabled: false }
+      });
+      res.json({ success: true, message: '2FA disabled' });
+    } else {
+      res.status(400).json({ error: 'Invalid token' });
+    }
+  } catch (err) {
+    console.error('Disable 2FA error:', err);
+    res.status(500).json({ error: 'Failed to disable 2FA' });
   }
 };
 
@@ -245,6 +363,7 @@ const getMe = async (req, res) => {
         newsletterSubscribed: true, createdAt: true,
         businessName: true, businessABN: true, businessPhone: true,
         subscriptionPlan: true, subscriptionExpiresAt: true,
+        twoFactorEnabled: true,
       },
     });
     res.json(user);
@@ -304,7 +423,7 @@ const changePassword = async (req, res) => {
   }
 };
 
-// GET /api/auth/upgrade-to-vendor
+// POST /api/auth/upgrade-to-vendor
 const upgradeToVendor = async (req, res) => {
   try {
     const { businessName, businessABN, businessPhone, businessAddress } = req.body;
@@ -338,4 +457,5 @@ module.exports = {
   register, login, googleLogin, verifyEmail, resendVerification,
   forgotPassword, resetPassword, getMe, updateProfile, changePassword,
   upgradeToVendor,
+  enable2FA, verify2FA, disable2FA, verifyTwoFactorLogin,
 };
